@@ -134,6 +134,8 @@ void hook_BroadcastVoiceData(IClient* cl, uint nBytes, char* data, int64 xuid) {
             LAU->Pop(); // Pop the result
         }
     }
+
+	return detour_BroadcastVoiceData.GetTrampoline<SV_BroadcastVoiceData>()(cl, nBytes, data, xuid);
 }
 
 LUA_FUNCTION_STATIC(eightbit_crush) {
