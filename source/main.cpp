@@ -174,6 +174,7 @@ LUA_FUNCTION_STATIC(eightbit_enableEffect) {
 
 GMOD_MODULE_OPEN()
 {
+	GarrysMod::Lua::ILuaBase* state;
 	LAU = state->luabase;
 	g_eightbit = new EightbitState();
 
