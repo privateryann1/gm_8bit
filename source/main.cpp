@@ -112,7 +112,7 @@ void hook_BroadcastVoiceData(IClient* cl, uint nBytes, char* data, int64 xuid) {
         LAU->Call(3, 1); // Call the hook with 3 arguments and expect 1 return value
 
         bool modified = false;
-        if (LAU->IsType(-1, GarrysMod::Lua::Type::BOOL)) {
+        if (LAU->IsType(-1, GarrysMod::Lua::Type::Bool)) {
             modified = LAU->GetBool(-1); // Check if Lua returned true indicating modification
         }
         LAU->Pop(2); // Pop the result and the global table
