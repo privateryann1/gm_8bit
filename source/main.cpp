@@ -40,6 +40,9 @@
 	};
 #endif
 
+lua_State *st = 0;
+#define LAU (st->luabase)
+
 static char decompressedBuffer[20 * 1024];
 static char recompressBuffer[20 * 1024];
 
@@ -101,21 +104,22 @@ void hook_BroadcastVoiceData(IClient* cl, uint nBytes, char* data, int64 xuid) {
 			std::cout << "Decompressed samples " << samples << std::endl;
 		#endif
 
-		// New code to replace the above section
-		LUA->PushSpecial(GarrysMod::Lua::SPECIAL_GLOB);
-		LUA->GetField(-1, "hook");
-		LUA->GetField(-1, "Run");
-		LUA->PushString("eightbit.Effect");
-		LUA->PushString(decompressedBuffer);
-		LUA->PushNumber(samples);
-		LUA->Call(3, 1);
+		// Prepare Lua stack
+		LAU->PushSpecial(Lua::SPECIAL_GLOB);
+		LAU->GetField(-2, "hook");
+		LAU->GetField(-1, "Run");
+		LAU->PushString("eightbit.Effect");
+		LAU->PushString(decompressedBuffer);
+		LAU->PushNumber(samples);
+		LAU->Call(4, 1);  // Expect 1 return value from Lua
 		
-		// Check if the buffer was modified by Lua
-		if (LUA->GetType(-1) == GarrysMod::Lua::Type::STRING) {
-		    const char* modifiedBuffer = LUA->GetString(-1);
-		    std::strcpy(decompressedBuffer, modifiedBuffer);
+		// Check if Lua returned a modified buffer
+		if (LAU->GetType(-1) == Lua::Type::STRING) {
+		    const char* modifiedBuffer = LAU->GetString(-1);
+		    std::strncpy(decompressedBuffer, modifiedBuffer, sizeof(decompressedBuffer) - 1);
+		    //decompressedBuffer[sizeof(decompressedBuffer) - 1] = '\0'; // Ensure null-termination
 		}
-		LUA->Pop(2);
+		LAU->Pop(3);  // Clean up Lua stack
 
 		//Recompress the stream
 		uint64_t steamid = *(uint64_t*)data;
