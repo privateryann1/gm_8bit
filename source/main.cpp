@@ -119,6 +119,17 @@ void hook_BroadcastVoiceData(IClient* cl, uint nBytes, char* data, int64 xuid) {
 		LAU->PushNumber(samples);
 		LAU->Call(2, 1);
 
+		if (LAU->GetType(-1) == GarrysMod::Lua::Type::Table) {
+		    for (int i = 0; i < samples; ++i) {
+		        LAU->PushNumber(i + 1);
+		        LAU->GetTable(-2);
+		        if (LAU->IsNumber(-1)) {
+		            decompressedBuffer[i] = static_cast<char>(LAU->GetNumber(-1));
+		        }
+		        LAU->Pop();
+		    }
+		}
+
 		//Recompress the stream
 		uint64_t steamid = *(uint64_t*)data;
 		int bytesWritten = SteamVoice::CompressIntoBuffer(steamid, codec, decompressedBuffer, samples*2, recompressBuffer, sizeof(recompressBuffer), 24000);
