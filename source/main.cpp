@@ -129,7 +129,7 @@ void hook_BroadcastVoiceData(IClient* cl, uint nBytes, char* data, int64 xuid) {
 				
 				        if (i < (sizeof(decompressedBuffer) / sizeof(uint16_t))) {
 				            int16_t signedSample = static_cast<int16_t>(LAU->GetNumber(-1));
-				            reinterpret_cast<int16_t*>(decompressedBuffer)[i] = signedSample * 0.5f;
+				            reinterpret_cast<int16_t*>(decompressedBuffer)[i] = signedSample;
 				        }
 				
 				        LAU->Pop();
