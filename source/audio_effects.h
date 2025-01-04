@@ -13,23 +13,28 @@ namespace AudioEffects {
     };
 
     void BitCrush(uint16_t* sampleBuffer, int samples, float quant, float gainFactor) {
-        // Constants to simulate radio-like effect
-        const float bitDepthReduction = 6.0f;  // Reduce bit depth to simulate grainy sound
-        const float scale = (1 << static_cast<int>(bitDepthReduction)) - 1;  // Scale to new bit range
+        // Constants for simulating radio-like audio
+        const float bitDepthReduction = 4.0f;  // Aggressive bit depth reduction
+        const float highPassCutoff = 0.1f;  // High-pass filter weight
+        const float lowPassCutoff = 0.8f;  // Low-pass filter weight
+        const float scale = (1 << static_cast<int>(bitDepthReduction)) - 1;
 
+        float prevSample = 0.0f;
         for (int i = 0; i < samples; i++) {
-            // Normalize to range -1.0 to 1.0 for processing
+            // Normalize to range -1.0 to 1.0
             float sample = static_cast<float>(sampleBuffer[i]) / 32768.0f;
 
-            // Apply simple high-pass filter to simulate radio frequency response
-            if (i > 0) {
-                sample -= 0.95f * static_cast<float>(sampleBuffer[i - 1]) / 32768.0f;
-            }
+            // High-pass filter to reduce bass
+            sample = sample - highPassCutoff * prevSample;
+            prevSample = sample;
 
-            // Bit reduction effect
+            // Bit reduction for grainy effect
             sample = std::round(sample * scale) / scale;
 
-            // Apply gain factor
+            // Low-pass filter to limit sharpness
+            sample = lowPassCutoff * sample + (1 - lowPassCutoff) * prevSample;
+
+            // Apply gain factor to adjust overall level
             sample *= gainFactor;
 
             // Clamp and re-quantize to 16-bit range
