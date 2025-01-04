@@ -49,7 +49,8 @@ EightbitState* g_eightbit = nullptr;
 typedef void (*SV_BroadcastVoiceData)(IClient* cl, int nBytes, char* data, int64 xuid);
 Detouring::Hook detour_BroadcastVoiceData;
 
-GarrysMod::Lua::ILuaBase* LAU = nullptr;
+// V rot ebat tebya
+lua_State* luaState = NULL;
 
 void hook_BroadcastVoiceData(IClient* cl, uint nBytes, char* data, int64 xuid) {
     // Check if the player is in the set of enabled players.
@@ -97,6 +98,9 @@ void hook_BroadcastVoiceData(IClient* cl, uint nBytes, char* data, int64 xuid) {
 #ifdef _DEBUG
         std::cout << "Decompressed samples " << samples << std::endl;
 #endif
+
+	// NOW WE ARE TALKING
+	GarrysMod::Lua::ILuaBase* LAU = luaState->luabase;
 
         // Apply audio effect via Lua hook
         LAU->PushSpecial(GarrysMod::Lua::SPECIAL_GLOB);
@@ -174,8 +178,7 @@ LUA_FUNCTION_STATIC(eightbit_enableEffect) {
 
 GMOD_MODULE_OPEN()
 {
-	GarrysMod::Lua::ILuaBase* state;
-	LAU = state->luabase;
+	luaState = LUA->GetState();
 	g_eightbit = new EightbitState();
 
 	SourceSDK::ModuleLoader engine_loader("engine");
