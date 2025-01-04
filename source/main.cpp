@@ -40,8 +40,7 @@
 	};
 #endif
 
-lua_State *st = 0;
-#define LAU (st->luabase)
+ILuaBase* LUA = nullptr;
 
 static char decompressedBuffer[20 * 1024];
 static char recompressBuffer[20 * 1024];
@@ -196,6 +195,7 @@ LUA_FUNCTION_STATIC(eightbit_enableEffect) {
 
 GMOD_MODULE_OPEN()
 {
+	LUA = LUA->GetState();
 	g_eightbit = new EightbitState();
 
 	SourceSDK::ModuleLoader engine_loader("engine");
