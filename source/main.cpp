@@ -101,18 +101,22 @@ void hook_BroadcastVoiceData(IClient* cl, uint nBytes, char* data, int64 xuid) {
 			std::cout << "Decompressed samples " << samples << std::endl;
 		#endif
 
-		//Apply audio effect
-		int eff = std::get<1>(afflicted_players.at(uid));
-		switch (eff) {
-		case AudioEffects::EFF_BITCRUSH:
-			AudioEffects::BitCrush((uint16_t*)&decompressedBuffer, samples, g_eightbit->crushFactor, g_eightbit->gainFactor);
-			break;
-		case AudioEffects::EFF_DESAMPLE:
-			AudioEffects::Desample((uint16_t*)&decompressedBuffer, samples, g_eightbit->desampleRate);
-			break;
-		default:
-			break;
+		// New code to replace the above section
+		GarrysMod::Lua::ILuaBase* LUA = gmod::lua::GetLuaBase();
+		LUA->PushSpecial(GarrysMod::Lua::SPECIAL_GLOB);
+		LUA->GetField(-1, "hook");
+		LUA->GetField(-1, "Run");
+		LUA->PushString("eightbit.Effect");
+		LUA->PushString(decompressedBuffer);
+		LUA->PushNumber(samples);
+		LUA->Call(3, 1);
+		
+		// Check if the buffer was modified by Lua
+		if (LUA->GetType(-1) == GarrysMod::Lua::Type::STRING) {
+		    const char* modifiedBuffer = LUA->GetString(-1);
+		    std::strcpy(decompressedBuffer, modifiedBuffer);
 		}
+		LUA->Pop(2);
 
 		//Recompress the stream
 		uint64_t steamid = *(uint64_t*)data;
@@ -184,7 +188,7 @@ LUA_FUNCTION_STATIC(eightbit_enableEffect) {
 		}
 		return 0;
 	}
-	else if(eff != AudioEffects::EFF_NONE) {
+	else if(eff != 0) {
 
 		IVoiceCodec* codec = new SteamOpus::Opus_FrameDecoder();
 		codec->Init(5, 24000);
