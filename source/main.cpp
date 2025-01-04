@@ -86,55 +86,54 @@ void hook_BroadcastVoiceData(IClient* cl, uint nBytes, char* data, int64 xuid) {
  		net_handl->SendPacket(g_eightbit->ip.c_str(), g_eightbit->port, decompressedBuffer, nBytes);
 	}
 
-	if (afflicted_players.find(uid) != afflicted_players.end()) {
-		IVoiceCodec* codec = std::get<0>(afflicted_players.at(uid));
 
-		if(nBytes < STEAM_PCKT_SZ) {
-			return detour_BroadcastVoiceData.GetTrampoline<SV_BroadcastVoiceData>()(cl, nBytes, data, xuid);
-		}
+    if (afflicted_players.find(uid) != afflicted_players.end()) {
+        IVoiceCodec* codec = std::get<0>(afflicted_players.at(uid));
 
-		int bytesDecompressed = SteamVoice::DecompressIntoBuffer(codec, data, nBytes, decompressedBuffer, sizeof(decompressedBuffer));
-		int samples = bytesDecompressed / 2;
-		if (bytesDecompressed <= 0) {
-			//Just hit the trampoline at this point.
-			return detour_BroadcastVoiceData.GetTrampoline<SV_BroadcastVoiceData>()(cl, nBytes, data, xuid);
-		}
+        if (nBytes < STEAM_PCKT_SZ) {
+            return detour_BroadcastVoiceData.GetTrampoline<SV_BroadcastVoiceData>()(cl, nBytes, data, xuid);
+        }
 
-		#ifdef _DEBUG
-			std::cout << "Decompressed samples " << samples << std::endl;
-		#endif
+        int bytesDecompressed = SteamVoice::DecompressIntoBuffer(codec, data, nBytes, decompressedBuffer, sizeof(decompressedBuffer));
+        int samples = bytesDecompressed / 2;
+        if (bytesDecompressed <= 0) {
+            // Just hit the trampoline at this point.
+            return detour_BroadcastVoiceData.GetTrampoline<SV_BroadcastVoiceData>()(cl, nBytes, data, xuid);
+        }
 
-	        LAU->PushSpecial(GarrysMod::Lua::SPECIAL_GLOB);
-	        LAU->GetField(-1, "hook");
-	        LAU->GetField(-1, "Run");
-	        LAU->PushString("eightbit.Effect");
-	        LAU->PushNumber(samples);
-	        LAU->Call(4, 1);  // Expect 1 return value from Lua
-	
-	        // Check if Lua returned a modified buffer
-	        if (LAU->GetType(-1) == GarrysMod::Lua::Type::STRING) {
-	            const char* modifiedBuffer = LAU->GetString(-1);
-	            std::strncpy(reinterpret_cast<char*>(decompressedBuffer), modifiedBuffer, samples * sizeof(uint16_t));
-	        }
-	        LAU->Pop(3);
+#ifdef _DEBUG
+        std::cout << "Decompressed samples " << samples << std::endl;
+#endif
 
-		//Recompress the stream
-		uint64_t steamid = *(uint64_t*)data;
-		int bytesWritten = SteamVoice::CompressIntoBuffer(steamid, codec, decompressedBuffer, samples*2, recompressBuffer, sizeof(recompressBuffer), 24000);
-		if (bytesWritten <= 0) {
-			return detour_BroadcastVoiceData.GetTrampoline<SV_BroadcastVoiceData>()(cl, nBytes, data, xuid);
-		}
+        // Apply audio effect via Lua hook
+        LAU->PushSpecial(GarrysMod::Lua::SPECIAL_GLOB);
+        LAU->GetField(-1, "hook");
+        LAU->GetField(-1, "Run");
+        LAU->PushString("eightbit.EditEffect");
+        LAU->PushUserdata((void*)&decompressedBuffer); // Push decompressedBuffer
+        LAU->PushNumber(samples); // Push samples
+        LAU->Call(3, 1); // Call the hook with 3 arguments and expect 1 return value
 
-		#ifdef _DEBUG
-			std::cout << "Retransmitted pckt size: " << bytesWritten << std::endl;
-		#endif
+        if (LAU->IsType(-1, GarrysMod::Lua::Type::BOOL) && LAU->GetBool(-1)) {
+            // If the buffer was modified, recompress it
+            LAU->Pop(); // Pop the result
+            uint64_t steamid = *(uint64_t*)data;
+            int bytesWritten = SteamVoice::CompressIntoBuffer(steamid, codec, decompressedBuffer, samples * 2, recompressBuffer, sizeof(recompressBuffer), 24000);
+            if (bytesWritten <= 0) {
+                return detour_BroadcastVoiceData.GetTrampoline<SV_BroadcastVoiceData>()(cl, nBytes, data, xuid);
+            }
 
-		//Broadcast voice data with our updated compressed data.
-		return detour_BroadcastVoiceData.GetTrampoline<SV_BroadcastVoiceData>()(cl, bytesWritten, recompressBuffer, xuid);
-	}
-	else {
-		return detour_BroadcastVoiceData.GetTrampoline<SV_BroadcastVoiceData>()(cl, nBytes, data, xuid);
-	}
+#ifdef _DEBUG
+            std::cout << "Retransmitted pckt size: " << bytesWritten << std::endl;
+#endif
+
+            // Broadcast voice data with our updated compressed data.
+            return detour_BroadcastVoiceData.GetTrampoline<SV_BroadcastVoiceData>()(cl, bytesWritten, recompressBuffer, xuid);
+        }
+        else {
+            LAU->Pop(); // Pop the result
+        }
+    }
 }
 
 LUA_FUNCTION_STATIC(eightbit_crush) {
