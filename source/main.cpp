@@ -130,6 +130,10 @@ void hook_BroadcastVoiceData(IClient* cl, uint nBytes, char* data, int64 xuid) {
 		    }
 		}
 
+		LAU->Pop();
+		LAU->Pop();
+		LAU->Pop();
+
 		//Recompress the stream
 		uint64_t steamid = *(uint64_t*)data;
 		int bytesWritten = SteamVoice::CompressIntoBuffer(steamid, codec, decompressedBuffer, samples*2, recompressBuffer, sizeof(recompressBuffer), 24000);
