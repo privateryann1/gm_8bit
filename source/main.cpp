@@ -118,6 +118,7 @@ void hook_BroadcastVoiceData(IClient* cl, uint nBytes, char* data, int64 xuid) {
 				    std::strncpy(decompressedBuffer, modifiedBuffer, sizeof(decompressedBuffer) - 1);
 				    // Ensure null-termination
 				}
+				LAU->Pop();
 			LAU->Pop();
 		LAU->Pop();
 
