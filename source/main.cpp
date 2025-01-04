@@ -105,11 +105,12 @@ void hook_BroadcastVoiceData(IClient* cl, uint nBytes, char* data, int64 xuid) {
 		#endif
 
 		GarrysMod::Lua::ILuaBase* LAU = luaState->luabase;
-		LAU->PushSpecial(GarrysMod::Lua::SPECIAL_GLOB);
-		LAU->GetField(-1, "hook");
-		LAU->GetField(-1, "Run");
-		LAU->PushString("Eightbit");
-		LAU->Pop(2);
+		LAU->PushSpecial(GarrysMod::Lua::SPECIAL_GLOB);  // +1
+		LAU->GetField(-1, "hook");                      // +1
+		LAU->GetField(-1, "Run");                       // +1
+		LAU->PushString("ApplyVoiceEffect");            // +1
+		LAU->Call(1, 0);
+		LAU->Pop(1);
 
 		//Recompress the stream
 		uint64_t steamid = *(uint64_t*)data;
