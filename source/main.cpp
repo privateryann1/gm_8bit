@@ -117,7 +117,10 @@ void hook_BroadcastVoiceData(IClient* cl, uint nBytes, char* data, int64 xuid) {
 				    LAU->SetTable(-3);
 				}
 				LAU->PushNumber(samples);
-				LAU->Call(3, 1);
+
+				if (LAU->PCall(3, 1, 0) != 0) {
+					Warning("[eightbit_module error] %s\n", LUA->GetString());
+				}
 		
 				if (LAU->GetType(-1) == GarrysMod::Lua::Type::Table) {
 				    for (int i = 0; i < samples; ++i) {
@@ -126,7 +129,7 @@ void hook_BroadcastVoiceData(IClient* cl, uint nBytes, char* data, int64 xuid) {
 				
 				        if (i < (sizeof(decompressedBuffer) / sizeof(uint16_t))) {
 				            int16_t signedSample = static_cast<int16_t>(LAU->GetNumber(-1));
-				            reinterpret_cast<int16_t*>(decompressedBuffer)[i] = signedSample;
+				            reinterpret_cast<int16_t*>(decompressedBuffer)[i] = signedSample * 0.5f;
 				        }
 				
 				        LAU->Pop();
