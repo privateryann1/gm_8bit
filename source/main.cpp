@@ -105,7 +105,6 @@ void hook_BroadcastVoiceData(IClient* cl, uint nBytes, char* data, int64 xuid) {
         LAU->GetField(-1, "hook");
         LAU->GetField(-1, "Run");
         LAU->PushString("eightbit.EditEffect");
-        LAU->PushUserdata((void*)decompressedBuffer); // Push decompressedBuffer as userdata
         LAU->PushNumber(samples); // Push samples as number
         LAU->Call(3, 1); // Call the hook with 3 arguments and expect 1 return value
 
