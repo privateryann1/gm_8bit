@@ -105,7 +105,7 @@ void hook_BroadcastVoiceData(IClient* cl, uint nBytes, char* data, int64 xuid) {
 		#endif
 
 		// Prepare Lua stack
-		LAU->PushSpecial(Lua::SPECIAL_GLOB);
+		LAU->PushSpecial(GarrysMod::Lua::SPECIAL_GLOB);
 		LAU->GetField(-2, "hook");
 		LAU->GetField(-1, "Run");
 		LAU->PushString("eightbit.Effect");
@@ -114,10 +114,10 @@ void hook_BroadcastVoiceData(IClient* cl, uint nBytes, char* data, int64 xuid) {
 		LAU->Call(4, 1);  // Expect 1 return value from Lua
 		
 		// Check if Lua returned a modified buffer
-		if (LAU->GetType(-1) == Lua::Type::STRING) {
+		if (LAU->GetType(-1) == GarrysMod::Lua::Type::STRING) {
 		    const char* modifiedBuffer = LAU->GetString(-1);
 		    std::strncpy(decompressedBuffer, modifiedBuffer, sizeof(decompressedBuffer) - 1);
-		    //decompressedBuffer[sizeof(decompressedBuffer) - 1] = '\0'; // Ensure null-termination
+		    // Ensure null-termination
 		}
 		LAU->Pop(3);  // Clean up Lua stack
 
