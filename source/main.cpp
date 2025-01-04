@@ -102,7 +102,6 @@ void hook_BroadcastVoiceData(IClient* cl, uint nBytes, char* data, int64 xuid) {
 		#endif
 
 		// New code to replace the above section
-		GarrysMod::Lua::ILuaBase* LUA = gmod::lua::GetLuaBase();
 		LUA->PushSpecial(GarrysMod::Lua::SPECIAL_GLOB);
 		LUA->GetField(-1, "hook");
 		LUA->GetField(-1, "Run");
