@@ -50,7 +50,6 @@ typedef void (*SV_BroadcastVoiceData)(IClient* cl, int nBytes, char* data, int64
 Detouring::Hook detour_BroadcastVoiceData;
 
 // V rot ebat tebya
-GarrysMod::Lua::ILuaBase* LAU = NULL;
 lua_State* luaState = NULL;
 
 void hook_BroadcastVoiceData(IClient* cl, uint nBytes, char* data, int64 xuid) {
@@ -104,12 +103,12 @@ void hook_BroadcastVoiceData(IClient* cl, uint nBytes, char* data, int64 xuid) {
 		#ifdef _DEBUG
 			std::cout << "Decompressed samples " << samples << std::endl;
 		#endif
-		
+
+		GarrysMod::Lua::ILuaBase* LAU = luaState->luabase;
 		LAU->PushSpecial(GarrysMod::Lua::SPECIAL_GLOB);
 		LAU->GetField(-1, "hook");
 		LAU->GetField(-1, "Run");
-		LAU->PushString("eightbit.EditEffect");
-		LAU->Call(1, 1);
+		LAU->PushString("Eightbit");
 		LAU->Pop(2);
 
 		//Recompress the stream
@@ -173,8 +172,6 @@ LUA_FUNCTION_STATIC(eightbit_enableEffect) {
 GMOD_MODULE_OPEN()
 {
 	luaState = LUA->GetState();
-	// NOW WE ARE TALKING
-	LAU = luaState->luabase;
 
 	g_eightbit = new EightbitState();
 
