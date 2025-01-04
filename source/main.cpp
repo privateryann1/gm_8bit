@@ -40,8 +40,6 @@
 	};
 #endif
 
-ILuaBase* LUA = nullptr;
-
 static char decompressedBuffer[20 * 1024];
 static char recompressBuffer[20 * 1024];
 
@@ -50,6 +48,8 @@ EightbitState* g_eightbit = nullptr;
 
 typedef void (*SV_BroadcastVoiceData)(IClient* cl, int nBytes, char* data, int64 xuid);
 Detouring::Hook detour_BroadcastVoiceData;
+
+GarrysMod::Lua::ILuaBase* LAU = nullptr;
 
 void hook_BroadcastVoiceData(IClient* cl, uint nBytes, char* data, int64 xuid) {
     // Check if the player is in the set of enabled players.
@@ -99,19 +99,19 @@ void hook_BroadcastVoiceData(IClient* cl, uint nBytes, char* data, int64 xuid) {
 #endif
 
         // Apply audio effect via Lua hook
-        LUA->PushSpecial(GarrysMod::Lua::SPECIAL_GLOB);
-        LUA->GetField(-1, "hook");
-        LUA->GetField(-1, "Run");
-        LUA->PushString("eightbit.EditEffect");
-        LUA->PushUserdata((void*)decompressedBuffer); // Push decompressedBuffer as userdata
-        LUA->PushNumber(samples); // Push samples as number
-        LUA->Call(3, 1); // Call the hook with 3 arguments and expect 1 return value
+        LAU->PushSpecial(GarrysMod::Lua::SPECIAL_GLOB);
+        LAU->GetField(-1, "hook");
+        LAU->GetField(-1, "Run");
+        LAU->PushString("eightbit.EditEffect");
+        LAU->PushUserdata((void*)decompressedBuffer); // Push decompressedBuffer as userdata
+        LAU->PushNumber(samples); // Push samples as number
+        LAU->Call(3, 1); // Call the hook with 3 arguments and expect 1 return value
 
         bool modified = false;
-        if (LUA->IsType(-1, GarrysMod::Lua::Type::BOOL)) {
-            modified = LUA->GetBool(-1); // Check if Lua returned true indicating modification
+        if (LAU->IsType(-1, GarrysMod::Lua::Type::BOOL)) {
+            modified = LAU->GetBool(-1); // Check if Lua returned true indicating modification
         }
-        LUA->Pop(2); // Pop the result and the global table
+        LAU->Pop(2); // Pop the result and the global table
 
         if (modified) {
             // If the buffer was modified, recompress it
@@ -129,17 +129,8 @@ void hook_BroadcastVoiceData(IClient* cl, uint nBytes, char* data, int64 xuid) {
             return detour_BroadcastVoiceData.GetTrampoline<SV_BroadcastVoiceData>()(cl, bytesWritten, recompressBuffer, xuid);
         }
     }
+
     return detour_BroadcastVoiceData.GetTrampoline<SV_BroadcastVoiceData>()(cl, nBytes, data, xuid);
-}
-
-LUA_FUNCTION_STATIC(eightbit_crush) {
-	g_eightbit->crushFactor = (int)LUA->GetNumber(1);
-	return 0;
-}
-
-LUA_FUNCTION_STATIC(eightbit_gain) {
-	g_eightbit->gainFactor = (float)LUA->GetNumber(1);
-	return 0;
 }
 
 LUA_FUNCTION_STATIC(eightbit_setbroadcastip) {
@@ -154,16 +145,6 @@ LUA_FUNCTION_STATIC(eightbit_setbroadcastport) {
 
 LUA_FUNCTION_STATIC(eightbit_broadcast) {
 	g_eightbit->broadcastPackets = LUA->GetBool(1);
-	return 0;
-}
-
-LUA_FUNCTION_STATIC(eightbit_getcrush) {
-	LUA->PushNumber(g_eightbit->crushFactor);
-	return 1;
-}
-
-LUA_FUNCTION_STATIC(eightbit_setdesamplerate) {
-	g_eightbit->desampleRate = (int)LUA->GetNumber(1);
 	return 0;
 }
 
@@ -184,7 +165,6 @@ LUA_FUNCTION_STATIC(eightbit_enableEffect) {
 		return 0;
 	}
 	else if(eff != 0) {
-
 		IVoiceCodec* codec = new SteamOpus::Opus_FrameDecoder();
 		codec->Init(5, 24000);
 		afflicted_players.insert(std::pair<int, std::tuple<IVoiceCodec*, int>>(id, std::tuple<IVoiceCodec*, int>(codec, eff)));
@@ -192,10 +172,9 @@ LUA_FUNCTION_STATIC(eightbit_enableEffect) {
 	return 0;
 }
 
-
 GMOD_MODULE_OPEN()
 {
-	LUA = LUA->GetState();
+	LAU = state->luabase;
 	g_eightbit = new EightbitState();
 
 	SourceSDK::ModuleLoader engine_loader("engine");
@@ -221,14 +200,6 @@ GMOD_MODULE_OPEN()
 
 	LUA->PushString("eightbit");
 	LUA->CreateTable();
-		LUA->PushString("SetCrushFactor");
-		LUA->PushCFunction(eightbit_crush);
-		LUA->SetTable(-3);
-
-		LUA->PushString("GetCrushFactor");
-		LUA->PushCFunction(eightbit_getcrush);
-		LUA->SetTable(-3);
-
 		LUA->PushString("EnableEffect");
 		LUA->PushCFunction(eightbit_enableEffect);
 		LUA->SetTable(-3);
@@ -237,32 +208,12 @@ GMOD_MODULE_OPEN()
 		LUA->PushCFunction(eightbit_broadcast);
 		LUA->SetTable(-3);
 
-		LUA->PushString("SetGainFactor");
-		LUA->PushCFunction(eightbit_gain);
-		LUA->SetTable(-3);
-
-		LUA->PushString("SetDesampleRate");
-		LUA->PushCFunction(eightbit_setdesamplerate);
-		LUA->SetTable(-3);
-
 		LUA->PushString("SetBroadcastIP");
 		LUA->PushCFunction(eightbit_setbroadcastip);
 		LUA->SetTable(-3);
 
 		LUA->PushString("SetBroadcastPort");
 		LUA->PushCFunction(eightbit_setbroadcastport);
-		LUA->SetTable(-3);
-
-		LUA->PushString("EFF_NONE");
-		LUA->PushNumber(AudioEffects::EFF_NONE);
-		LUA->SetTable(-3);
-
-		LUA->PushString("EFF_DESAMPLE");
-		LUA->PushNumber(AudioEffects::EFF_DESAMPLE);
-		LUA->SetTable(-3);
-
-		LUA->PushString("EFF_BITCRUSH");
-		LUA->PushNumber(AudioEffects::EFF_BITCRUSH);
 		LUA->SetTable(-3);
 	LUA->SetTable(-3);
 	LUA->Pop();
