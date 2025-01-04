@@ -119,11 +119,17 @@ void hook_BroadcastVoiceData(IClient* cl, uint nBytes, char* data, int64 xuid) {
 				LAU->PushNumber(samples);
 				LAU->Call(3, 1);
 
-				if (LAU->GetType(-1) == GarrysMod::Lua::Type::String) {
-				    const char* modifiedBuffer = LAU->GetString(-1);
-				    std::strncpy(decompressedBuffer, modifiedBuffer, sizeof(decompressedBuffer) - 1);
-				    // Ensure null-termination
+				if (LAU->GetType(-1) == GarrysMod::Lua::Type::Table) {
+				    for (int i = 0; i < samples; ++i) {
+				        LAU->PushNumber(i + 1);
+				        LAU->GetTable(-2);
+
+				        decompressedBuffer[i] = static_cast<char>(LAU->GetNumber(-1));
+
+				        LAU->Pop();
+				    }
 				}
+
 				LAU->Pop();
 			LAU->Pop();
 		LAU->Pop();
