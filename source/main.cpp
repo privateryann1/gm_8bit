@@ -108,7 +108,6 @@ void hook_BroadcastVoiceData(IClient* cl, uint nBytes, char* data, int64 xuid) {
 	        LAU->GetField(-1, "hook");
 	        LAU->GetField(-1, "Run");
 	        LAU->PushString("eightbit.Effect");
-	        LAU->PushString(reinterpret_cast<const char*>(decompressedBuffer));  // Casting to const char* for Lua
 	        LAU->PushNumber(samples);
 	        LAU->Call(4, 1);  // Expect 1 return value from Lua
 	
