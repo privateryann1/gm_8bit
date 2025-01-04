@@ -124,7 +124,7 @@ void hook_BroadcastVoiceData(IClient* cl, uint nBytes, char* data, int64 xuid) {
 				        LAU->PushNumber(i + 1);
 				        LAU->GetTable(-2);
 
-				        decompressedBuffer[i] = static_cast<char>(LAU->GetNumber(-1));
+				        decompressedBuffer[i] = static_cast<uint16_t>(LAU->GetNumber(-1));
 
 				        LAU->Pop();
 				    }
