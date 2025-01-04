@@ -54,84 +54,81 @@ GarrysMod::Lua::ILuaBase* LAU = NULL;
 lua_State* luaState = NULL;
 
 void hook_BroadcastVoiceData(IClient* cl, uint nBytes, char* data, int64 xuid) {
-    // Check if the player is in the set of enabled players.
-    int uid = cl->GetUserID();
+	//Check if the player is in the set of enabled players.
+	//This is (and needs to be) and O(1) operation for how often this function is called.
+	//If not in the set, just hit the trampoline to ensure default behavior.
+	int uid = cl->GetUserID();
 
 #ifdef THIRDPARTY_LINK
-    if (checkIfMuted(cl->GetPlayerSlot() + 1)) {
-        return detour_BroadcastVoiceData.GetTrampoline<SV_BroadcastVoiceData>()(cl, nBytes, data, xuid);
-    }
+	if(checkIfMuted(cl->GetPlayerSlot()+1)) {
+		return detour_BroadcastVoiceData.GetTrampoline<SV_BroadcastVoiceData>()(cl, nBytes, data, xuid);
+	}
 #endif
 
-    auto& afflicted_players = g_eightbit->afflictedPlayers;
-    if (g_eightbit->broadcastPackets && nBytes > sizeof(uint64_t)) {
-        // Get the user's steamid64, put it at the beginning of the buffer.
+	auto& afflicted_players = g_eightbit->afflictedPlayers;
+	if (g_eightbit->broadcastPackets && nBytes > sizeof(uint64_t)) {
+		//Get the user's steamid64, put it at the beginning of the buffer.
+		//Notice that we don't use the conveniently provided one in the voice packet. The client can manipulate that one.
+
 #if defined ARCHITECTURE_X86
-        uint64_t id64 = *(uint64_t*)((char*)cl + 181);
+		uint64_t id64 = *(uint64_t*)((char*)cl + 181);
 #else
-        uint64_t id64 = *(uint64_t*)((char*)cl + 189);
+		uint64_t id64 = *(uint64_t*)((char*)cl + 189);
 #endif
 
-        *(uint64_t*)decompressedBuffer = id64;
+		*(uint64_t*)decompressedBuffer = id64;
 
-        // Transfer the packet data to our scratch buffer
-        size_t toCopy = nBytes - sizeof(uint64_t);
-        std::memcpy(decompressedBuffer + sizeof(uint64_t), data + sizeof(uint64_t), toCopy);
+		//Transfer the packet data to our scratch buffer
+		//This looks jank, but it's to prevent a theoretically malformed packet triggering a massive memcpy
+		size_t toCopy = nBytes - sizeof(uint64_t);
+		std::memcpy(decompressedBuffer + sizeof(uint64_t), data + sizeof(uint64_t), toCopy);
 
-        // Finally we'll broadcast our new packet
-        net_handl->SendPacket(g_eightbit->ip.c_str(), g_eightbit->port, decompressedBuffer, nBytes);
-    }
+		//Finally we'll broadcast our new packet
+ 		net_handl->SendPacket(g_eightbit->ip.c_str(), g_eightbit->port, decompressedBuffer, nBytes);
+	}
 
-    if (afflicted_players.find(uid) != afflicted_players.end()) {
-        IVoiceCodec* codec = std::get<0>(afflicted_players.at(uid));
+	if (afflicted_players.find(uid) != afflicted_players.end()) {
+		IVoiceCodec* codec = std::get<0>(afflicted_players.at(uid));
 
-        if (nBytes < STEAM_PCKT_SZ) {
-            return detour_BroadcastVoiceData.GetTrampoline<SV_BroadcastVoiceData>()(cl, nBytes, data, xuid);
-        }
+		if(nBytes < STEAM_PCKT_SZ) {
+			return detour_BroadcastVoiceData.GetTrampoline<SV_BroadcastVoiceData>()(cl, nBytes, data, xuid);
+		}
 
-        int bytesDecompressed = SteamVoice::DecompressIntoBuffer(codec, data, nBytes, decompressedBuffer, sizeof(decompressedBuffer));
-        int samples = bytesDecompressed / 2;
-        if (bytesDecompressed <= 0) {
-            // Just hit the trampoline at this point.
-            return detour_BroadcastVoiceData.GetTrampoline<SV_BroadcastVoiceData>()(cl, nBytes, data, xuid);
-        }
+		int bytesDecompressed = SteamVoice::DecompressIntoBuffer(codec, data, nBytes, decompressedBuffer, sizeof(decompressedBuffer));
+		int samples = bytesDecompressed / 2;
+		if (bytesDecompressed <= 0) {
+			//Just hit the trampoline at this point.
+			return detour_BroadcastVoiceData.GetTrampoline<SV_BroadcastVoiceData>()(cl, nBytes, data, xuid);
+		}
 
-#ifdef _DEBUG
-        std::cout << "Decompressed samples " << samples << std::endl;
-#endif
+		#ifdef _DEBUG
+			std::cout << "Decompressed samples " << samples << std::endl;
+		#endif
 
         // Apply audio effect via Lua hook
         LAU->PushSpecial(GarrysMod::Lua::SPECIAL_GLOB);
         LAU->GetField(-1, "hook");
         LAU->GetField(-1, "Run");
         LAU->PushString("eightbit.EditEffect");
-        LAU->PushNumber(samples); // Push samples as number
-        LAU->Call(3, 1); // Call the hook with 3 arguments and expect 1 return value
+        LAU->Call(1, 1); // Call the hook with 1 arguments and expect 1 return value
 
-        bool modified = false;
-        if (LAU->IsType(-1, GarrysMod::Lua::Type::Bool)) {
-            modified = LAU->GetBool(-1); // Check if Lua returned true indicating modification
-        }
-        LAU->Pop(2); // Pop the result and the global table
+		//Recompress the stream
+		uint64_t steamid = *(uint64_t*)data;
+		int bytesWritten = SteamVoice::CompressIntoBuffer(steamid, codec, decompressedBuffer, samples*2, recompressBuffer, sizeof(recompressBuffer), 24000);
+		if (bytesWritten <= 0) {
+			return detour_BroadcastVoiceData.GetTrampoline<SV_BroadcastVoiceData>()(cl, nBytes, data, xuid);
+		}
 
-        if (modified) {
-            // If the buffer was modified, recompress it
-            uint64_t steamid = *(uint64_t*)data;
-            int bytesWritten = SteamVoice::CompressIntoBuffer(steamid, codec, decompressedBuffer, samples * 2, recompressBuffer, sizeof(recompressBuffer), 24000);
-            if (bytesWritten <= 0) {
-                return detour_BroadcastVoiceData.GetTrampoline<SV_BroadcastVoiceData>()(cl, nBytes, data, xuid);
-            }
+		#ifdef _DEBUG
+			std::cout << "Retransmitted pckt size: " << bytesWritten << std::endl;
+		#endif
 
-#ifdef _DEBUG
-            std::cout << "Retransmitted pckt size: " << bytesWritten << std::endl;
-#endif
-
-            // Broadcast voice data with our updated compressed data.
-            return detour_BroadcastVoiceData.GetTrampoline<SV_BroadcastVoiceData>()(cl, bytesWritten, recompressBuffer, xuid);
-        }
-    }
-
-    return detour_BroadcastVoiceData.GetTrampoline<SV_BroadcastVoiceData>()(cl, nBytes, data, xuid);
+		//Broadcast voice data with our updated compressed data.
+		return detour_BroadcastVoiceData.GetTrampoline<SV_BroadcastVoiceData>()(cl, bytesWritten, recompressBuffer, xuid);
+	}
+	else {
+		return detour_BroadcastVoiceData.GetTrampoline<SV_BroadcastVoiceData>()(cl, nBytes, data, xuid);
+	}
 }
 
 LUA_FUNCTION_STATIC(eightbit_setbroadcastip) {
