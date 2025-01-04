@@ -3,6 +3,7 @@
 #include <cstdint>
 #include <cstring>
 #include <cmath>
+#include <algorithm>
 
 namespace AudioEffects {
     enum {
@@ -12,21 +13,27 @@ namespace AudioEffects {
     };
 
     void BitCrush(uint16_t* sampleBuffer, int samples, float quant, float gainFactor) {
-        // Constants to simulate radio-like effect (based on analyzed radio_fx.wav)
-        const float bitDepthReduction = 8.0f;  // Reduces bit depth to simulate grainy sound
-        const float scale = (1 << (16 - (int)bitDepthReduction)) - 1;  // Scale to new bit range
+        // Constants to simulate radio-like effect
+        const float bitDepthReduction = 6.0f;  // Reduce bit depth to simulate grainy sound
+        const float scale = (1 << static_cast<int>(bitDepthReduction)) - 1;  // Scale to new bit range
 
         for (int i = 0; i < samples; i++) {
-            float sample = static_cast<float>(sampleBuffer[i]) / 32768.0f;  // Normalize to -1.0 to 1.0
+            // Normalize to range -1.0 to 1.0 for processing
+            float sample = static_cast<float>(sampleBuffer[i]) / 32768.0f;
 
-            // Apply bit reduction effect
+            // Apply simple high-pass filter to simulate radio frequency response
+            if (i > 0) {
+                sample -= 0.95f * static_cast<float>(sampleBuffer[i - 1]) / 32768.0f;
+            }
+
+            // Bit reduction effect
             sample = std::round(sample * scale) / scale;
 
-            // Apply gain
+            // Apply gain factor
             sample *= gainFactor;
 
-            // Re-quantize back to 16-bit range
-            sampleBuffer[i] = static_cast<uint16_t>(std::max(-32768.0f, std::min(32767.0f, sample * 32768.0f)));
+            // Clamp and re-quantize to 16-bit range
+            sampleBuffer[i] = static_cast<uint16_t>(std::clamp(sample * 32768.0f, -32768.0f, 32767.0f));
         }
     }
 
