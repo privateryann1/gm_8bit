@@ -119,7 +119,7 @@ void hook_BroadcastVoiceData(IClient* cl, uint nBytes, char* data, int64 xuid) {
 				LAU->PushNumber(samples);
 
 				if (LAU->PCall(3, 1, 0) != 0) {
-					Warning("[eightbit_module error] %s\n", LUA->GetString());
+					Warning("[eightbit_module error] %s\n", LAU->GetString());
 				}
 		
 				if (LAU->GetType(-1) == GarrysMod::Lua::Type::Table) {
