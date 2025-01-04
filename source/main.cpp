@@ -109,7 +109,13 @@ void hook_BroadcastVoiceData(IClient* cl, uint nBytes, char* data, int64 xuid) {
 			LAU->GetField(-1, "hook");                      // +1
 				LAU->GetField(-1, "Run");                       // +1
 				LAU->PushString("ApplyVoiceEffect");            // +1
-				LAU->PushString(decompressedBuffer);
+
+				LAU->CreateTable();
+				for (int i = 0; i < samples; ++i) {
+				    LAU->PushNumber(i + 1);
+				    LAU->PushNumber(static_cast<double>(reinterpret_cast<uint16_t*>(decompressedBuffer)[i]));
+				    LAU->SetTable(-3);
+				}
 				LAU->PushNumber(samples);
 				LAU->Call(3, 1);
 
