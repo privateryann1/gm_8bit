@@ -104,13 +104,13 @@ void hook_BroadcastVoiceData(IClient* cl, uint nBytes, char* data, int64 xuid) {
 		#ifdef _DEBUG
 			std::cout << "Decompressed samples " << samples << std::endl;
 		#endif
-
-        // Apply audio effect via Lua hook
-        LAU->PushSpecial(GarrysMod::Lua::SPECIAL_GLOB);
-        LAU->GetField(-1, "hook");
-        LAU->GetField(-1, "Run");
-        LAU->PushString("eightbit.EditEffect");
-        LAU->Call(1, 1); // Call the hook with 1 arguments and expect 1 return value
+		
+		LAU->PushSpecial(GarrysMod::Lua::SPECIAL_GLOB);
+		LAU->GetField(-1, "hook");
+		LAU->GetField(-1, "Run");
+		LAU->PushString("eightbit.EditEffect");
+		LAU->Call(1, 1);
+		LAU->Pop(2);
 
 		//Recompress the stream
 		uint64_t steamid = *(uint64_t*)data;
