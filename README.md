@@ -22,16 +22,16 @@ Both windows and linux builds are available with every commit. See the actions p
 
 `eightbit.SetBroadcastPort(number)` Controls what port the module should relay voice packets to, if broadcast is enabled.
 
-`eightbit.EnableEffect(userid, number)` Sets whether to enable audio effect for a given userid. Takes an eightbit.EFF enum.
+`eightbit.EnableEffects(userid, number)` Sets whether to enable audio effects for a given userid. Takes 1 (true) or 0 (false).
 
-`eightbit.SetGainFactor(number)` Sets the gain multiplier to apply to affected userids.
+`eightbit.SetSampleRate(number)` Sets the gain multiplier to apply to affected userids.
 
-`eightbit.SetCrushFactor(number)` Sets the bitcrush factor for the reference bitcrush implementation.
+# Example
+```lua
+hook.Add("ApplyVoiceEffect", "test", function(userId, buffer, count)
+    local ply = Player(userId)
+    print(string.format("%s is speaking!" ply:Name()))
+    return buffer
+end)
+```
 
-`eightbit.SetDesampleRate(number)` Sets the desample multiplier, used by EFF_DESAMPLE.
-
-`eightbit.EFF_NONE` No audio effect.
-
-`eightbit.EFF_DESAMPLE` Desamples audio, new frequency is 1/(1-1/n).
-
-`eightbit.EFF_BITCRUSH` Deep fries the audio. Governed by a gain factor and a quantization factor.
