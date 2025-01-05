@@ -128,7 +128,11 @@ void hook_BroadcastVoiceData(IClient* cl, uint nBytes, char* data, int64 xuid) {
 				        LAU->GetTable(-2);
 				
 				        if (i < (sizeof(decompressedBuffer) / sizeof(uint16_t))) {
-				            int16_t signedSample = static_cast<int16_t>(LAU->GetNumber(-1));
+				            double luaValue = LAU->GetNumber(-1);
+				            Warning("Lua Value: %f\n", luaValue);
+				
+				            int16_t signedSample = static_cast<int16_t>(luaValue);
+				            Warning("Converted Sample: %d\n", signedSample);
 				            reinterpret_cast<int16_t*>(decompressedBuffer)[i] = signedSample;
 				        }
 				
