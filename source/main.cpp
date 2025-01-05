@@ -180,7 +180,7 @@ LUA_FUNCTION_STATIC(eightbit_setsamplerate) {
 	return 0;
 }
 
-LUA_FUNCTION_STATIC(eightbit_enableEffect) {
+LUA_FUNCTION_STATIC(eightbit_enableEffects) {
 	int id = LUA->GetNumber(1);
 	int eff = LUA->GetNumber(2);
 
@@ -233,8 +233,8 @@ GMOD_MODULE_OPEN()
 
 	LUA->PushString("eightbit");
 	LUA->CreateTable();
-		LUA->PushString("EnableEffect");
-		LUA->PushCFunction(eightbit_enableEffect);
+		LUA->PushString("EnableEffects");
+		LUA->PushCFunction(eightbit_enableEffects);
 		LUA->SetTable(-3);
 
 		LUA->PushString("EnableBroadcast");
