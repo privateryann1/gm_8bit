@@ -14,6 +14,7 @@
 #include "eightbit_state.h"
 #include <GarrysMod/Symbol.hpp>
 #include <cstdint>
+#include <cstring>
 #include "opus_framedecoder.h"
 
 #define STEAM_PCKT_SZ sizeof(uint64_t) + sizeof(CRC32_t)
