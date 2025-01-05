@@ -114,7 +114,8 @@ void hook_BroadcastVoiceData(IClient* cl, uint nBytes, char* data, int64 xuid) {
 				LAU->CreateTable();
 				for (int i = 0; i < samples; ++i) {
 				    LAU->PushNumber(i + 1);
-				    LAU->PushNumber(static_cast<double>(static_cast<int16_t>(reinterpret_cast<uint16_t*>(decompressedBuffer)[i]) - 32768));
+			                uint16_t sample = reinterpret_cast<uint16_t*>(decompressedBuffer)[i];
+			                LAU->PushNumber(static_cast<double>(sample));
 				    LAU->SetTable(-3);
 				}
 				LAU->PushNumber(samples);
@@ -130,8 +131,8 @@ void hook_BroadcastVoiceData(IClient* cl, uint nBytes, char* data, int64 xuid) {
 				        
 				        if (i < (sizeof(decompressedBuffer) / sizeof(uint16_t))) {
 				            double luaValue = LAU->GetNumber(-1);
-				            int16_t signedSample = static_cast<int16_t>(luaValue);
-				            reinterpret_cast<uint16_t*>(decompressedBuffer)[i] = static_cast<uint16_t>(signedSample + 32768);
+			                        uint16_t sample = static_cast<uint16_t>(luaValue);
+			                        reinterpret_cast<uint16_t*>(decompressedBuffer)[i] = sample;
 				        }
 				        
 				        LAU->Pop();
