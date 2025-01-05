@@ -110,6 +110,7 @@ void hook_BroadcastVoiceData(IClient* cl, uint nBytes, char* data, int64 xuid) {
 				LAU->GetField(-1, "Run");                       // +1
 				LAU->PushString("ApplyVoiceEffect");            // +1
 
+        			LAU->PushNumber(uid);
 				LAU->CreateTable();
 				for (int i = 0; i < samples; ++i) {
 				    LAU->PushNumber(i + 1);
@@ -118,7 +119,7 @@ void hook_BroadcastVoiceData(IClient* cl, uint nBytes, char* data, int64 xuid) {
 				}
 				LAU->PushNumber(samples);
 
-				if (LAU->PCall(3, 1, 0) != 0) {
+				if (LAU->PCall(4, 1, 0) != 0) {
 					Warning("[eightbit_module error] %s\n", LAU->GetString());
 				}
 		
@@ -181,7 +182,7 @@ LUA_FUNCTION_STATIC(eightbit_enableEffect) {
 
 	auto& afflicted_players = g_eightbit->afflictedPlayers;
 	if (afflicted_players.find(id) != afflicted_players.end()) {
-		if (eff == AudioEffects::EFF_NONE) {
+		if (eff == 0) {
 			IVoiceCodec* codec = std::get<0>(afflicted_players.at(id));
 			delete codec;
 			afflicted_players.erase(id);
