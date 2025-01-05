@@ -8,7 +8,6 @@
 #include <iclient.h>
 #include <unordered_map>
 #include "ivoicecodec.h"
-#include "audio_effects.h"
 #include "net.h"
 #include "thirdparty.h"
 #include "steam_voice.h"
@@ -176,6 +175,11 @@ LUA_FUNCTION_STATIC(eightbit_broadcast) {
 	return 0;
 }
 
+LUA_FUNCTION_STATIC(eightbit_setsamplerate) {
+	g_eightbit->sample_rate = LUA->GetNumber(1);
+	return 0;
+}
+
 LUA_FUNCTION_STATIC(eightbit_enableEffect) {
 	int id = LUA->GetNumber(1);
 	int eff = LUA->GetNumber(2);
@@ -243,6 +247,10 @@ GMOD_MODULE_OPEN()
 
 		LUA->PushString("SetBroadcastPort");
 		LUA->PushCFunction(eightbit_setbroadcastport);
+		LUA->SetTable(-3);
+
+		LUA->PushString("SetSampleRate");
+		LUA->PushCFunction(eightbit_setsamplerate);
 		LUA->SetTable(-3);
 	LUA->SetTable(-3);
 	LUA->Pop();
