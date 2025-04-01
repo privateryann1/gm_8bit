@@ -104,67 +104,68 @@ void hook_BroadcastVoiceData(IClient* cl, uint nBytes, char* data, int64 xuid) {
 		if (g_eightbit->pitchShift != 1.0f && g_eightbit->pitchShift > 0.1f) {
 			// Create temporary buffer
 			int16_t* tempBuffer = new int16_t[samples];
-			memset(tempBuffer, 0, samples * sizeof(int16_t)); // Initialize to zero
 			int16_t* pcm = reinterpret_cast<int16_t*>(decompressedBuffer);
 
 			if (g_eightbit->pitchShift > 1.0f) {
-				// For higher pitch, use a ring buffer approach with crossfading
-				const int grainSize = 256;  // Size of each audio grain (adjust as needed)
-				const int overlap = grainSize / 2;  // 50% overlap between grains
+				// Higher pitch
+				float stretchFactor = g_eightbit->pitchShift;
 
-				// Create window function (Hann window) for smooth crossfading
-				float window[grainSize];
-				for (int i = 0; i < grainSize; i++) {
-					window[i] = 0.5f * (1.0f - cos(2.0f * M_PI * i / (grainSize - 1)));
-				}
+				// Phase accumulator that advances by 'stretchFactor' each sample
+				float phase = 0.0f;
 
-				// Process in grains
-				for (int grainStart = 0; grainStart < samples; grainStart += (grainSize - overlap)) {
-					// Calculate the source position for this grain
-					float srcGrainPos = grainStart / g_eightbit->pitchShift;
+				// We'll do a small crossfade when phase wraps, to smooth transitions
+				// Adjust CROSSFADE_SAMPLES to taste (between 16 to 128 is typical)
+				const int CROSSFADE_SAMPLES = 32;
+				bool justWrapped = false;
+				int wrapStartIndex = 0;  // Where the wrap begins so we can crossfade
 
-					// Process each sample in the grain
-					for (int i = 0; i < grainSize; i++) {
-						int outputIdx = grainStart + i;
-						if (outputIdx >= samples) break;  // Don't go past buffer end
-
-						// Calculate exact source position
-						float srcPos = srcGrainPos + (i / g_eightbit->pitchShift);
-
-						// Ensure we're within the source buffer
-						while (srcPos >= samples) srcPos -= samples;
-						while (srcPos < 0) srcPos += samples;
-
-						// Get indices for interpolation
-						int idx1 = static_cast<int>(srcPos);
-						int idx2 = (idx1 + 1) % samples;
-
-						// Linear interpolation
-						float frac = srcPos - idx1;
-						float sample = pcm[idx1] * (1.0f - frac) + pcm[idx2] * frac;
-
-						// Apply window function to create smooth fade-in and fade-out
-						sample *= window[i];
-
-						// Add to output buffer (overlapping grains will accumulate)
-						tempBuffer[outputIdx] += static_cast<int16_t>(sample);
+				for (int i = 0; i < samples; i++)
+				{
+					// Clamp or wrap the phase within the buffer
+					if (phase >= samples)
+					{
+						phase -= samples;     // Wrap the phase
+						wrapStartIndex = i;   // Mark the start for crossfade
+						justWrapped = true;
 					}
-				}
 
-				// Normalize the output to prevent clipping
-				// Find maximum amplitude
-				int16_t maxAmp = 0;
-				for (int i = 0; i < samples; i++) {
-					int16_t absVal = std::abs(tempBuffer[i]);
-					if (absVal > maxAmp) maxAmp = absVal;
-				}
+					// Get base indices and fraction
+					int idx1 = static_cast<int>(phase);
+					int idx2 = (idx1 + 1) % samples;
+					float frac = phase - idx1;
 
-				// Scale if necessary to prevent clipping
-				if (maxAmp > 32000) {  // Leave some headroom
-					float scale = 32000.0f / maxAmp;
-					for (int i = 0; i < samples; i++) {
-						tempBuffer[i] = static_cast<int16_t>(tempBuffer[i] * scale);
+					// Interpolate
+					float interp = pcm[idx1] * (1.0f - frac) + pcm[idx2] * frac;
+					tempBuffer[i] = static_cast<int16_t>(interp);
+
+					// If we just wrapped, crossfade from old sample to new
+					// so the first CROSSFADE_SAMPLES after the wrap are blended
+					if (justWrapped)
+					{
+						// how many samples we've been in the crossfade
+						int crossfadePos = i - wrapStartIndex;
+						if (crossfadePos < CROSSFADE_SAMPLES && i > 0)
+						{
+							// blendFactor goes from 0.0 at wrap start to 1.0 at crossfade end
+							float blendFactor = static_cast<float>(crossfadePos)
+											  / static_cast<float>(CROSSFADE_SAMPLES);
+
+							// tempBuffer[i-1] will have the "old" sample from just before the wrap
+							// This line does a short crossfade into the new sample
+							tempBuffer[i] = static_cast<int16_t>(
+								(1.0f - blendFactor) * tempBuffer[i-1] +
+								 blendFactor         * tempBuffer[i]
+							);
+						}
+						else
+						{
+							// Once we’re past CROSSFADE_SAMPLES, stop crossfading
+							justWrapped = false;
+						}
 					}
+
+					// Advance phase
+					phase += stretchFactor;
 				}
 			} else {
 				// Lower pitch (original approach that works well)
