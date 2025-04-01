@@ -107,34 +107,22 @@ void hook_BroadcastVoiceData(IClient* cl, uint nBytes, char* data, int64 xuid) {
 			int16_t* pcm = reinterpret_cast<int16_t*>(decompressedBuffer);
 
 			if (g_eightbit->pitchShift > 1.0f) {
-				// Higher pitch - use same interpolation approach as lower pitch
-				// But in reverse - we're compressing instead of stretching
+				// For higher pitch, use a more direct approach
+				// We need to compress time - for each output sample, we need to jump ahead faster in the source
+				float stretchFactor = g_eightbit->pitchShift; // How much to compress
+
 				for (int i = 0; i < samples; i++) {
-					// Use linear interpolation just like in lower pitch case
-					float pos = i / g_eightbit->pitchShift;
+					// Calculate source position (jumps ahead faster than output position)
+					float srcPos = i * stretchFactor;
+					int srcIdx = static_cast<int>(srcPos);
 
-					// Get the two closest samples
-					int idx1 = static_cast<int>(pos);
-					int idx2 = idx1 + 1;
-
-					// Make sure we don't go out of bounds
-					if (idx1 >= samples) idx1 = samples - 1;
-					if (idx2 >= samples) idx2 = samples - 1;
-
-					// Calculate interpolation factor
-					float frac = pos - idx1;
-
-					// Apply linear interpolation
-					if (idx1 < samples) {
-						if (idx2 < samples) {
-							tempBuffer[i] = static_cast<int16_t>(pcm[idx1] * (1.0f - frac) + pcm[idx2] * frac);
-						} else {
-							tempBuffer[i] = pcm[idx1];
-						}
-					} else {
-						// If somehow we're out of bounds, use the last sample
-						tempBuffer[i] = pcm[samples - 1];
+					// If we've run past the end of our buffer, loop back to avoid cutting out
+					if (srcIdx >= samples) {
+						srcIdx = srcIdx % samples;
 					}
+
+					// Simply copy the sample
+					tempBuffer[i] = pcm[srcIdx];
 				}
 			} else {
 				// Lower pitch (original approach that works well)
