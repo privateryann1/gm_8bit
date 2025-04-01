@@ -103,27 +103,57 @@ void hook_BroadcastVoiceData(IClient* cl, uint nBytes, char* data, int64 xuid) {
 		// Apply pitch shifting if enabled
 		if (g_eightbit->pitchShift != 1.0f && g_eightbit->pitchShift > 0.1f) {
 			// Calculate new sample count
-			int newSamples = std::min(static_cast<int>(samples / g_eightbit->pitchShift), static_cast<int>(sizeof(recompressBuffer)/2));
+			bool isHigherPitch = g_eightbit->pitchShift > 1.0f;
+			int newSamples;
 
-			// Create temporary buffer for pitch shifted samples
-			int16_t* tempBuffer = new int16_t[newSamples];
-
-			// Perform resampling for pitch shift
-			for (int i = 0; i < newSamples; i++) {
-				float pos = i * g_eightbit->pitchShift;
-				int idx1 = static_cast<int>(pos);
-				int idx2 = idx1 + 1;
-
-				// Handle edge case
-				if (idx2 >= samples) idx2 = samples - 1;
-
-				// Linear interpolation between samples
-				float frac = pos - idx1;
-				int16_t* pcm = reinterpret_cast<int16_t*>(decompressedBuffer);
-				tempBuffer[i] = static_cast<int16_t>(pcm[idx1] * (1.0f - frac) + pcm[idx2] * frac);
+			if (isHigherPitch) {
+				// For higher pitch, maintain original buffer size to prevent cutting out
+				newSamples = samples;
+			} else {
+				// For lower pitch, calculate new size normally
+				newSamples = std::min(static_cast<int>(samples / g_eightbit->pitchShift), static_cast<int>(sizeof(recompressBuffer)/2));
 			}
 
-			// Zero out original buffer and copy pitch-shifted data
+			// Create temporary buffer
+			int16_t* tempBuffer = new int16_t[newSamples];
+
+			if (isHigherPitch) {
+				// For higher pitch, we'll time-stretch the output to fill the buffer
+				// This means repeating parts of the audio to maintain length
+				float stretchFactor = 1.0f / g_eightbit->pitchShift;
+
+				for (int i = 0; i < newSamples; i++) {
+					// Map output position to input position with stretching
+					float pos = (i * g_eightbit->pitchShift) * stretchFactor;
+					if (pos >= samples) pos = samples - 1;
+
+					int idx1 = static_cast<int>(pos);
+					int idx2 = idx1 + 1;
+
+					// Handle edge case
+					if (idx2 >= samples) idx2 = samples - 1;
+
+					// Linear interpolation between samples
+					float frac = pos - idx1;
+					int16_t* pcm = reinterpret_cast<int16_t*>(decompressedBuffer);
+					tempBuffer[i] = static_cast<int16_t>(pcm[idx1] * (1.0f - frac) + pcm[idx2] * frac);
+				}
+			} else {
+				// Original resampling for lower pitch
+				for (int i = 0; i < newSamples; i++) {
+					float pos = i * g_eightbit->pitchShift;
+					int idx1 = static_cast<int>(pos);
+					int idx2 = idx1 + 1;
+
+					if (idx2 >= samples) idx2 = samples - 1;
+
+					float frac = pos - idx1;
+					int16_t* pcm = reinterpret_cast<int16_t*>(decompressedBuffer);
+					tempBuffer[i] = static_cast<int16_t>(pcm[idx1] * (1.0f - frac) + pcm[idx2] * frac);
+				}
+			}
+
+			// Copy the processed audio back
 			memset(decompressedBuffer, 0, sizeof(decompressedBuffer));
 			memcpy(decompressedBuffer, tempBuffer, newSamples * sizeof(int16_t));
 
@@ -131,7 +161,6 @@ void hook_BroadcastVoiceData(IClient* cl, uint nBytes, char* data, int64 xuid) {
 			samples = newSamples;
 			bytesDecompressed = samples * 2;
 
-			// Clean up
 			delete[] tempBuffer;
 		}
 
