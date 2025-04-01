@@ -107,22 +107,66 @@ void hook_BroadcastVoiceData(IClient* cl, uint nBytes, char* data, int64 xuid) {
 			int16_t* pcm = reinterpret_cast<int16_t*>(decompressedBuffer);
 
 			if (g_eightbit->pitchShift > 1.0f) {
-				// For higher pitch, use linear interpolation to avoid discontinuities
+				// For higher pitch, use cubic interpolation for smoother transitions
 				float stretchFactor = g_eightbit->pitchShift;
 
+				// Apply a small overlap to avoid discontinuities at buffer boundaries
+				const int overlapSamples = 64;
+				int16_t overlapBuffer[overlapSamples] = {0};
+
+				// Process the main buffer with better interpolation
 				for (int i = 0; i < samples; i++) {
-					// Calculate source position
 					float srcPos = i * stretchFactor;
 
-					// Wrap the source position if it exceeds buffer length
-					srcPos = fmod(srcPos, static_cast<float>(samples));
+					// Handle buffer wrapping more gracefully
+					while (srcPos >= samples) {
+						srcPos -= samples;
+					}
 
+					// Get surrounding sample indices with proper wrapping
+					int idx0 = static_cast<int>(srcPos) - 1;
 					int idx1 = static_cast<int>(srcPos);
-					int idx2 = (idx1 + 1) % samples; // Wrap idx2 if needed
+					int idx2 = idx1 + 1;
+					int idx3 = idx1 + 2;
 
-					// Linear interpolation
+					// Handle wrapping for all indices
+					if (idx0 < 0) idx0 += samples;
+					if (idx1 >= samples) idx1 %= samples;
+					if (idx2 >= samples) idx2 %= samples;
+					if (idx3 >= samples) idx3 %= samples;
+
+					// Calculate fractional position for interpolation
 					float frac = srcPos - idx1;
-					tempBuffer[i] = static_cast<int16_t>(pcm[idx1] * (1.0f - frac) + pcm[idx2] * frac);
+					float frac2 = frac * frac;
+					float frac3 = frac2 * frac;
+
+					// Cubic interpolation for smoother transitions
+					float a = -0.5f * frac3 + frac2 - 0.5f * frac;
+					float b = 1.5f * frac3 - 2.5f * frac2 + 1.0f;
+					float c = -1.5f * frac3 + 2.0f * frac2 + 0.5f * frac;
+					float d = 0.5f * frac3 - 0.5f * frac2;
+
+					float sample = a * pcm[idx0] + b * pcm[idx1] + c * pcm[idx2] + d * pcm[idx3];
+
+					// Apply crossfade when approaching wrap point
+					if (static_cast<int>(srcPos + stretchFactor) >= samples) {
+						// We're approaching a wrap point
+						int distToEnd = samples - static_cast<int>(srcPos);
+						if (distToEnd < overlapSamples) {
+							float fadeOut = static_cast<float>(distToEnd) / overlapSamples;
+							float fadeIn = 1.0f - fadeOut;
+							// Mix with previously calculated overlap sample
+							sample = sample * fadeOut + overlapBuffer[overlapSamples - distToEnd] * fadeIn;
+						}
+					}
+
+					// Store in result buffer
+					tempBuffer[i] = static_cast<int16_t>(sample);
+
+					// Keep track of samples that might need crossfading in the next buffer section
+					if (i < overlapSamples) {
+						overlapBuffer[i] = tempBuffer[i];
+					}
 				}
 			} else {
 				// Lower pitch (original approach that works well)
