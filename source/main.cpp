@@ -107,19 +107,22 @@ void hook_BroadcastVoiceData(IClient* cl, uint nBytes, char* data, int64 xuid) {
 			int16_t* pcm = reinterpret_cast<int16_t*>(decompressedBuffer);
 
 			if (g_eightbit->pitchShift > 1.0f) {
-				// Calculate a skip interval
-				int skipInterval = static_cast<int>(g_eightbit->pitchShift);
-				if (skipInterval < 2) skipInterval = 2;
+				// For higher pitch, use linear interpolation to avoid discontinuities
+				float stretchFactor = g_eightbit->pitchShift;
 
-				// Fill the buffer with alternating samples and zeros
 				for (int i = 0; i < samples; i++) {
-					if (i % skipInterval != 0) {
-						// For most samples, keep the original value
-						tempBuffer[i] = pcm[i];
-					} else {
-						// Every skipInterval samples, insert a zero
-						tempBuffer[i] = 0;
-					}
+					// Calculate source position
+					float srcPos = i * stretchFactor;
+
+					// Wrap the source position if it exceeds buffer length
+					srcPos = fmod(srcPos, static_cast<float>(samples));
+
+					int idx1 = static_cast<int>(srcPos);
+					int idx2 = (idx1 + 1) % samples; // Wrap idx2 if needed
+
+					// Linear interpolation
+					float frac = srcPos - idx1;
+					tempBuffer[i] = static_cast<int16_t>(pcm[idx1] * (1.0f - frac) + pcm[idx2] * frac);
 				}
 			} else {
 				// Lower pitch (original approach that works well)
