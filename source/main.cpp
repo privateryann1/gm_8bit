@@ -104,46 +104,67 @@ void hook_BroadcastVoiceData(IClient* cl, uint nBytes, char* data, int64 xuid) {
 		if (g_eightbit->pitchShift != 1.0f && g_eightbit->pitchShift > 0.1f) {
 			// Create temporary buffer
 			int16_t* tempBuffer = new int16_t[samples];
+			memset(tempBuffer, 0, samples * sizeof(int16_t)); // Initialize to zero
 			int16_t* pcm = reinterpret_cast<int16_t*>(decompressedBuffer);
 
 			if (g_eightbit->pitchShift > 1.0f) {
-				// For higher pitch, focus on smooth interpolation and wrap-around
-				float stretchFactor = g_eightbit->pitchShift;
+				// For higher pitch, use a ring buffer approach with crossfading
+				const int grainSize = 256;  // Size of each audio grain (adjust as needed)
+				const int overlap = grainSize / 2;  // 50% overlap between grains
 
-				// Track the previous position to detect wrap-around
-				float prevSrcPos = 0.0f;
+				// Create window function (Hann window) for smooth crossfading
+				float window[grainSize];
+				for (int i = 0; i < grainSize; i++) {
+					window[i] = 0.5f * (1.0f - cos(2.0f * M_PI * i / (grainSize - 1)));
+				}
 
+				// Process in grains
+				for (int grainStart = 0; grainStart < samples; grainStart += (grainSize - overlap)) {
+					// Calculate the source position for this grain
+					float srcGrainPos = grainStart / g_eightbit->pitchShift;
+
+					// Process each sample in the grain
+					for (int i = 0; i < grainSize; i++) {
+						int outputIdx = grainStart + i;
+						if (outputIdx >= samples) break;  // Don't go past buffer end
+
+						// Calculate exact source position
+						float srcPos = srcGrainPos + (i / g_eightbit->pitchShift);
+
+						// Ensure we're within the source buffer
+						while (srcPos >= samples) srcPos -= samples;
+						while (srcPos < 0) srcPos += samples;
+
+						// Get indices for interpolation
+						int idx1 = static_cast<int>(srcPos);
+						int idx2 = (idx1 + 1) % samples;
+
+						// Linear interpolation
+						float frac = srcPos - idx1;
+						float sample = pcm[idx1] * (1.0f - frac) + pcm[idx2] * frac;
+
+						// Apply window function to create smooth fade-in and fade-out
+						sample *= window[i];
+
+						// Add to output buffer (overlapping grains will accumulate)
+						tempBuffer[outputIdx] += static_cast<int16_t>(sample);
+					}
+				}
+
+				// Normalize the output to prevent clipping
+				// Find maximum amplitude
+				int16_t maxAmp = 0;
 				for (int i = 0; i < samples; i++) {
-					// Calculate source position
-					float srcPos = i * stretchFactor;
+					int16_t absVal = std::abs(tempBuffer[i]);
+					if (absVal > maxAmp) maxAmp = absVal;
+				}
 
-					// Apply wrapping to keep within buffer bounds
-					while (srcPos >= samples) {
-						srcPos -= samples;
+				// Scale if necessary to prevent clipping
+				if (maxAmp > 32000) {  // Leave some headroom
+					float scale = 32000.0f / maxAmp;
+					for (int i = 0; i < samples; i++) {
+						tempBuffer[i] = static_cast<int16_t>(tempBuffer[i] * scale);
 					}
-
-					// Check if we wrapped around from the previous sample
-					bool wrapped = (prevSrcPos > srcPos) && (i > 0);
-
-					// Linear interpolation with special handling for wrap points
-					int idx1 = static_cast<int>(srcPos);
-					int idx2 = (idx1 + 1) % samples;  // Properly wrap the second index
-
-					float frac = srcPos - idx1;
-
-					// Apply standard interpolation
-					if (!wrapped) {
-						tempBuffer[i] = static_cast<int16_t>(pcm[idx1] * (1.0f - frac) + pcm[idx2] * frac);
-					} else {
-						// At wrap points, use the previous output sample and blend toward the new interpolated value
-						// This creates a smoother transition at buffer boundaries
-						float blendFactor = 0.5f;  // Adjust this value for different smoothness levels
-						int16_t interpValue = static_cast<int16_t>(pcm[idx1] * (1.0f - frac) + pcm[idx2] * frac);
-						tempBuffer[i] = static_cast<int16_t>(tempBuffer[i-1] * blendFactor + interpValue * (1.0f - blendFactor));
-					}
-
-					// Update previous position for next iteration
-					prevSrcPos = srcPos;
 				}
 			} else {
 				// Lower pitch (original approach that works well)
