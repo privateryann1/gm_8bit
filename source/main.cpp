@@ -107,22 +107,19 @@ void hook_BroadcastVoiceData(IClient* cl, uint nBytes, char* data, int64 xuid) {
 			int16_t* pcm = reinterpret_cast<int16_t*>(decompressedBuffer);
 
 			if (g_eightbit->pitchShift > 1.0f) {
-				// For higher pitch, use a more direct approach
-				// We need to compress time - for each output sample, we need to jump ahead faster in the source
-				float stretchFactor = g_eightbit->pitchShift; // How much to compress
+				// Calculate a skip interval
+				int skipInterval = static_cast<int>(g_eightbit->pitchShift);
+				if (skipInterval < 2) skipInterval = 2;
 
+				// Fill the buffer with alternating samples and zeros
 				for (int i = 0; i < samples; i++) {
-					// Calculate source position (jumps ahead faster than output position)
-					float srcPos = i * stretchFactor;
-					int srcIdx = static_cast<int>(srcPos);
-
-					// If we've run past the end of our buffer, loop back to avoid cutting out
-					if (srcIdx >= samples) {
-						srcIdx = srcIdx % samples;
+					if (i % skipInterval != 0) {
+						// For most samples, keep the original value
+						tempBuffer[i] = pcm[i];
+					} else {
+						// Every skipInterval samples, insert a zero
+						tempBuffer[i] = 0;
 					}
-
-					// Simply copy the sample
-					tempBuffer[i] = pcm[srcIdx];
 				}
 			} else {
 				// Lower pitch (original approach that works well)
