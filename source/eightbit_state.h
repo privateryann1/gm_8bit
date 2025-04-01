@@ -8,4 +8,5 @@ struct EightbitState {
 	uint16_t port = 4000;
 	std::string ip = "127.0.0.1";
 	std::unordered_map<int, std::tuple<IVoiceCodec*, int>> afflictedPlayers;
+	float pitchShift = 1.0f;
 };

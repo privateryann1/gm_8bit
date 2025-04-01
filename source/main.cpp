@@ -100,6 +100,41 @@ void hook_BroadcastVoiceData(IClient* cl, uint nBytes, char* data, int64 xuid) {
 			return detour_BroadcastVoiceData.GetTrampoline<SV_BroadcastVoiceData>()(cl, nBytes, data, xuid);
 		}
 
+		// Apply pitch shifting if enabled
+		if (g_eightbit->pitchShift != 1.0f && g_eightbit->pitchShift > 0.1f) {
+			// Calculate new sample count
+			int newSamples = std::min(static_cast<int>(samples / g_eightbit->pitchShift), static_cast<int>(sizeof(recompressBuffer)/2));
+
+			// Create temporary buffer for pitch shifted samples
+			int16_t* tempBuffer = new int16_t[newSamples];
+
+			// Perform resampling for pitch shift
+			for (int i = 0; i < newSamples; i++) {
+				float pos = i * g_eightbit->pitchShift;
+				int idx1 = static_cast<int>(pos);
+				int idx2 = idx1 + 1;
+
+				// Handle edge case
+				if (idx2 >= samples) idx2 = samples - 1;
+
+				// Linear interpolation between samples
+				float frac = pos - idx1;
+				int16_t* pcm = reinterpret_cast<int16_t*>(decompressedBuffer);
+				tempBuffer[i] = static_cast<int16_t>(pcm[idx1] * (1.0f - frac) + pcm[idx2] * frac);
+			}
+
+			// Zero out original buffer and copy pitch-shifted data
+			memset(decompressedBuffer, 0, sizeof(decompressedBuffer));
+			memcpy(decompressedBuffer, tempBuffer, newSamples * sizeof(int16_t));
+
+			// Update sample count
+			samples = newSamples;
+			bytesDecompressed = samples * 2;
+
+			// Clean up
+			delete[] tempBuffer;
+		}
+
 		#ifdef _DEBUG
 			std::cout << "Decompressed samples " << samples << std::endl;
 		#endif
@@ -123,7 +158,7 @@ void hook_BroadcastVoiceData(IClient* cl, uint nBytes, char* data, int64 xuid) {
 					Warning("[eightbit_module error] %s\n", LAU->GetString());
 					LAU->Pop();
 				}
-		
+
 				if (LAU->GetType(-1) == GarrysMod::Lua::Type::Table) {
 				    for (int i = 0; i < samples; ++i) {
 				        LAU->PushNumber(i + 1);
@@ -136,7 +171,7 @@ void hook_BroadcastVoiceData(IClient* cl, uint nBytes, char* data, int64 xuid) {
 				        LAU->Pop();
 				    }
 				}
-				
+
 				LAU->Pop();
 			LAU->Pop();
 		LAU->Pop();
@@ -204,6 +239,11 @@ LUA_FUNCTION_STATIC(eightbit_enableEffects) {
 	return 0;
 }
 
+LUA_FUNCTION_STATIC(eightbit_setpitch) {
+    g_eightbit->pitchShift = LUA->GetNumber(1);
+    return 0;
+}
+
 GMOD_MODULE_OPEN()
 {
 	luaState = LUA->GetState();
@@ -251,6 +291,10 @@ GMOD_MODULE_OPEN()
 
 		LUA->PushString("SetSampleRate");
 		LUA->PushCFunction(eightbit_setsamplerate);
+		LUA->SetTable(-3);
+
+		LUA->PushString("SetPitchShift");
+		LUA->PushCFunction(eightbit_setpitch);
 		LUA->SetTable(-3);
 	LUA->SetTable(-3);
 	LUA->Pop();
